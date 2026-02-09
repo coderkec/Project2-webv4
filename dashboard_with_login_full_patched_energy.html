@@ -643,8 +643,8 @@
             fxTarget: "KRW",
             // 내부망 API 경로 (에너지)
             energyEndpoint: "/api/energy/kpx/now?page=1&perPage=2",
-            // 외부망 API 경로 (환율, 날씨)
-            fxExternalUrl: "https://open.er-api.com/v6/latest/USD",
+            // 무료 CORS 프록시 서버를 경유해서 요청 (임시 해결책)
+            fxExternalUrl: "https://api.allorigins.win/raw?url=https://open.er-api.com/v6/latest/USD",
             weatherUrl: "https://api.open-meteo.com/v1/forecast?latitude=37.5665&longitude=126.978&current_weather=true"
         };
 
