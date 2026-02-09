@@ -606,6 +606,48 @@
             border-radius: 999px;
         }
 
+        .tb-center {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            padding: 0 10px;
+        }
+
+        .tb-ind {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid #e2e8f0;
+            background: rgba(248, 250, 252, 0.8);
+            font-size: 12px;
+            font-weight: 800;
+            color: #0f172a;
+            user-select: none;
+        }
+
+        .tb-ind .dot {
+            width: 9px;
+            height: 9px;
+            border-radius: 50%;
+            background: #94a3b8;
+            /* unknown */
+            box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.20);
+        }
+
+        .tb-ind.ok .dot {
+            background: #22c55e;
+            box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.20);
+        }
+
+        .tb-ind.bad .dot {
+            background: #ef4444;
+            box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.20);
+        }
+
         .tb-right {
             display: flex;
             align-items: center;
@@ -638,6 +680,35 @@
                 padding: 28px 26px;
             }
         }
+
+
+
+        /* 비관리자 미니 바 */
+        .guestbar {
+            position: sticky;
+            top: 12px;
+            z-index: 50;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin: 12px auto 0;
+            max-width: 900px;
+            padding: 0 2px;
+        }
+
+        .gbtn {
+            border: 1px solid rgba(0, 0, 0, 0.10);
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(6px);
+            padding: 10px 12px;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .gbtn:hover {
+            background: rgba(255, 255, 255, 1);
+        }
     </style>
 </head>
 
@@ -653,9 +724,7 @@
                     비회원도 바로 이용 가능하며, 관리자(admin) 로그인 시에만 상단 툴바가 노출됩니다.
                 </p>
                 <div class="hero-badges">
-                    <span class="hero-pill">Ingress 경로 기반 라우팅</span>
-                    <span class="hero-pill">Kubernetes 서비스 연동</span>
-                    <span class="hero-pill">외부 API(FX/Weather) fallback</span>
+                    <span class="hero-pill">K8s 기반 통합 관제 UI</span>
                 </div>
             </div>
 
@@ -671,7 +740,7 @@
 
                 <div class="login-field">
                     <label for="loginPass">비밀번호</label>
-                    <input class="login-input" id="loginPass" type="password" placeholder="admin 계정은 admin"
+                    <input class="login-input" id="loginPass" type="password" placeholder="admin 계정은 admin123"
                         autocomplete="current-password">
                 </div>
 
@@ -726,7 +795,7 @@
                 </div>
 
                 <div class="login-hint" id="loginHint">
-                    • admin/admin 로그인 → 상단 툴바 표시<br>
+                    • admin/admin123 로그인 → 상단 툴바 표시<br>
                     • 일반 로그인은 회원가입 후 사용(간단 저장소 기반)<br>
                     • 비회원은 버튼으로 바로 이용 가능
                 </div>
@@ -742,10 +811,26 @@
                 <span>ADMIN</span>
                 <span class="tb-chip" id="tbUserChip">user</span>
             </div>
+
+            <div class="tb-center" aria-label="Health indicators">
+                <span class="tb-ind" id="indWeather"><span class="dot"></span><span>Weather</span></span>
+                <span class="tb-ind" id="indEnergy"><span class="dot"></span><span>Energy</span></span>
+                <span class="tb-ind" id="indFx"><span class="dot"></span><span>FX</span></span>
+                <span class="tb-ind" id="indTime"><span class="dot"></span><span>Time</span></span>
+            </div>
+
             <div class="tb-right">
+                <button class="tb-btn" id="tbHealth" type="button">헬스체크</button>
                 <button class="tb-btn" id="tbRefresh" type="button">위젯 갱신</button>
                 <button class="tb-btn" id="tbLogout" type="button">로그아웃</button>
             </div>
+
+            <!-- 비관리자 전용 미니 바(뒤로/로그아웃) -->
+            <div id="guestBar" class="guestbar hidden" aria-label="Guest toolbar">
+                <button class="gbtn" id="guestBack" type="button">뒤로</button>
+                <button class="gbtn" id="guestLogout" type="button">로그아웃</button>
+            </div>
+
         </div>
 
         <div class="container">
@@ -880,11 +965,19 @@
 
         function applyToolbarVisibility(auth) {
             const tb = document.getElementById("toolbar");
+            const gb = document.getElementById("guestBar");
             const chip = document.getElementById("tbUserChip");
             if (chip) chip.textContent = auth?.user || "guest";
-            if (!tb) return;
-            if (auth?.role === "admin") tb.classList.remove("hidden");
-            else tb.classList.add("hidden");
+
+            if (auth?.role === "admin") {
+                if (tb) tb.classList.remove("hidden");
+                if (gb) gb.classList.add("hidden");
+                updateHealthIndicators();
+            } else {
+                if (tb) tb.classList.add("hidden");
+                // 비회원/일반계정도 대시보드에서 뒤로/로그아웃 가능
+                if (gb) gb.classList.remove("hidden");
+            }
         }
 
         function initAuthUI() {
@@ -915,7 +1008,7 @@
             }
 
             // admin은 하드코딩(데모)
-            const isAdmin = (u === "admin" && p === "admin");
+            const isAdmin = (u === "admin" && p === "admin123");
             if (isAdmin) {
                 const auth = { user: u, role: "admin", ts: Date.now() };
                 setAuth(auth);
@@ -963,6 +1056,19 @@
         document.getElementById("btnGuest")?.addEventListener("click", handleGuest);
         document.getElementById("tbLogout")?.addEventListener("click", handleLogout);
 
+        // 비관리자(비회원/일반계정)용 뒤로/로그아웃
+        document.getElementById("guestBack")?.addEventListener("click", () => {
+            clearAuth();
+            showLogin();
+            applyToolbarVisibility(getAuth());
+        });
+        document.getElementById("guestLogout")?.addEventListener("click", () => {
+            clearAuth();
+            showLogin();
+            applyToolbarVisibility(getAuth());
+        });
+
+
         // =========================
         // 0-1) 회원가입 / 비밀번호 재설정 (간단: localStorage)
         // =========================
@@ -1007,12 +1113,14 @@
             users[u] = { pass: p, createdAt: Date.now() };
             saveUsers(users);
 
-            // 가입 후 자동 로그인
-            setAuth({ user: u, role: "user", ts: Date.now() });
+            // 가입 완료: 자동 진입하지 않고 로그인 화면으로 복귀
             closeExtra();
-            showDashboard();
-            applyToolbarVisibility(getAuth());
-            refreshWidgets();
+            showLogin();
+            if (hint) hint.textContent = "가입 완료. 방금 만든 계정으로 로그인하세요.";
+            const lu = document.getElementById("loginUser");
+            const lp = document.getElementById("loginPass");
+            if (lu) lu.value = u;
+            if (lp) { lp.value = ""; lp.focus(); }
         }
 
         function handleResetPassword() {
@@ -1126,6 +1234,29 @@
                 "/api/exchange"
             ]
         };
+        // 내부 API base (배포 환경에 맞게 필요 시 덮어쓰기)
+        // 예) window.__API_BASE = "http://10.2.2.101";
+        const API_BASE = (window.__API_BASE || "").replace(/\/$/, "");
+
+        // 헬스체크(관리자 툴바 표시용)
+        const HEALTH = { weather: null, energy: null, fx: null, time: null };
+
+        function setIndicator(id, ok) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.classList.remove("ok", "bad");
+            if (ok === true) el.classList.add("ok");
+            else if (ok === false) el.classList.add("bad");
+        }
+
+        function updateHealthIndicators() {
+            // 툴바는 admin만 보이므로, 존재 여부만 체크
+            setIndicator("indWeather", HEALTH.weather);
+            setIndicator("indEnergy", HEALTH.energy);
+            setIndicator("indFx", HEALTH.fx);
+            setIndicator("indTime", HEALTH.time);
+        }
+
 
         function setText(id, text) {
             const el = document.getElementById(id);
@@ -1143,78 +1274,132 @@
         }
 
         async function loadWeather() {
-            const { lat, lon, name } = WIDGETS.seoul;
-            const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,wind_speed_10m&timezone=Asia%2FSeoul`;
+            // ✅ 내부 Weather API(서울: nx=60, ny=127) 사용
+            const name = "서울";
+            const endpoints = [
+                `${API_BASE}/api/weather/ultra?nx=60&ny=127`,
+                `${API_BASE}/api/weather/short?nx=60&ny=127`
+            ];
 
             setText("weatherSub", `${name} 기준 / 로딩 중...`);
+            setText("weatherMeta", "");
+
+            // deep find helper (payload 구조가 달라도 키 기반으로 값 추출)
+            const deepFind = (obj, keys) => {
+                const wanted = new Set(keys);
+                const seen = new Set();
+                const stack = [obj];
+                while (stack.length) {
+                    const cur = stack.pop();
+                    if (!cur || typeof cur !== "object") continue;
+                    if (seen.has(cur)) continue;
+                    seen.add(cur);
+
+                    for (const [k, v] of Object.entries(cur)) {
+                        if (wanted.has(k) && v !== undefined && v !== null && v !== "") return v;
+                        if (v && typeof v === "object") stack.push(v);
+                    }
+                }
+                return null;
+            };
+
             try {
-                const res = await fetch(url, { cache: "no-store" });
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
+                let payload = null;
+                let used = "";
+                for (const url of endpoints) {
+                    const res = await fetch(url, { cache: "no-store" });
+                    if (res.ok) {
+                        payload = await res.json();
+                        used = url;
+                        break;
+                    }
+                }
+                if (!payload) throw new Error("weather endpoints 모두 실패");
 
-                const cur = data.current || {};
-                const t = cur.temperature_2m;
-                const h = cur.relative_humidity_2m;
-                const w = cur.wind_speed_10m;
-                const tUnit = (data.current_units && data.current_units.temperature_2m) || "°C";
-                const wUnit = (data.current_units && data.current_units.wind_speed_10m) || "m/s";
+                // ultra/short 어느 쪽이든 최대한 뽑아내기
+                const baseDate = payload?.baseDate ?? payload?.tmFc ?? payload?.date ?? "";
+                const baseTime = payload?.baseTime ?? payload?.time ?? "";
+                const cached = payload?.cached ?? payload?.cache ?? payload?.meta?.cache ?? "";
 
-                setText("weatherValue", (t !== undefined && t !== null) ? `${t}${tUnit}` : "—");
-                setText("weatherSub", `습도 ${h ?? "—"}% · 바람 ${w ?? "—"}${wUnit}`);
-                setText("weatherMeta", cur.time ? `업데이트: ${cur.time}` : "");
+                // 온도 후보: T1H(초단기), TMP(단기) 등
+                const temp = deepFind(payload, ["T1H", "TMP", "temperature", "temp", "TA"]);
+                const hum = deepFind(payload, ["REH", "humidity", "hum"]);
+                const wind = deepFind(payload, ["WSD", "wind", "wsd"]);
+                const sky = deepFind(payload, ["SKY", "sky"]);
+                const pty = deepFind(payload, ["PTY", "pty"]);
+
+                // 표시
+                setText("weatherValue", (temp !== null && temp !== undefined) ? `${temp}°C` : "—");
+
+                const subParts = [];
+                if (hum !== null && hum !== undefined) subParts.push(`습도 ${hum}%`);
+                if (wind !== null && wind !== undefined) subParts.push(`풍속 ${wind}`);
+                if (sky !== null && sky !== undefined) subParts.push(`SKY ${sky}`);
+                if (pty !== null && pty !== undefined) subParts.push(`PTY ${pty}`);
+                setText("weatherSub", subParts.length ? subParts.join(" · ") : `${name} 오늘 날씨`);
+
+                const metaParts = [];
+                if (cached) metaParts.push(`cache=${cached}`);
+                if (baseDate || baseTime) metaParts.push(`기준: ${baseDate} ${baseTime}`.trim());
+                setText("weatherMeta", metaParts.join(" / "));
+
+                HEALTH.weather = true;
+                updateHealthIndicators();
             } catch (e) {
                 setText("weatherValue", "불러오기 실패");
-                setText("weatherSub", "네트워크/방화벽 outbound 확인");
+                setText("weatherSub", "weather API 연결 확인");
                 setText("weatherMeta", String(e));
+                HEALTH.weather = false;
+                updateHealthIndicators();
             }
         }
 
         // 전력(KPX) - "전국 효율" 표시
         // ※ API가 실제로 "전국 효율" 단일 필드를 주지 않으면
         //    현재 구현은 '첫 row의 지역 값 합계'를 전국 단일 지표로 계산해서 표기함.
-        async function loadEnergy() {
-            const url = WIDGETS.energyEndpoint;
 
-            setText("energySub", "로딩 중...");
-            setText("energyMeta", ""); // rows/page/cache/key 같은 디버그 제거
+        // Energy widget (rollback): show raw regional snapshot + year like before
+        async function loadEnergy() {
+            const url = `${API_BASE}${WIDGETS.energyEndpoint}`;
+
+            setText("energyValue", "불러오는 중...");
+            setText("energySub", "");
+            setText("energyMeta", "");
 
             try {
                 const res = await fetch(url, { cache: "no-store" });
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                const data = await res.json();
+                const payload = await res.json();
 
-                const row = data?.data?.[0] || data?.data?.[0]?.row || data?.[0] || null;
+                const row = payload?.data?.[0] || null;
                 if (!row || typeof row !== "object") throw new Error("energy row not found");
 
-                const year = row["연도"] ?? row["year"] ?? row["Year"] ?? null;
+                // ✅ 연도는 '현재 연도'(시스템 기준)로 고정 표기
+                const yearNow = new Date().getFullYear();
+                setText("energyValue", `연도 ${yearNow}`);
 
-                let sum = 0;
-                let hasNumber = false;
+                // ✅ 지역별 수치 스냅샷(서울/부산/인천)
+                const seoul = row["서울"] ?? "";
+                const busan = row["부산"] ?? "";
+                const incheon = row["인천"] ?? "";
 
-                Object.entries(row).forEach(([k, v]) => {
-                    if (k === "연도" || k.toLowerCase() === "year") return;
-                    if (v === null || v === undefined) return;
-                    const s = String(v).trim();
-                    if (!s) return;
-                    const n = Number(s.replace(/,/g, ""));
-                    if (Number.isFinite(n)) {
-                        sum += n;
-                        hasNumber = true;
-                    }
-                });
+                const parts = [];
+                parts.push(`서울 ${seoul || "-"}`);
+                parts.push(`부산 ${busan || "-"}`);
+                parts.push(`인천 ${incheon || "-"}`);
+                setText("energySub", parts.join(" · "));
 
-                if (!hasNumber) {
-                    setText("energyValue", "데이터 없음");
-                    setText("energySub", year ? `연도 ${year} · 합산 불가` : "합산 불가");
-                    return;
-                }
+                // ✅ 지저분한 메타(rows/page/cache/key)는 표시하지 않음
+                setText("energyMeta", "");
 
-                setText("energyValue", fmtNumber(sum));
-                setText("energySub", year ? `연도 ${year} · 지역 합계` : "지역 합계");
+                HEALTH.energy = true;
+                updateHealthIndicators();
             } catch (e) {
-                setText("energyValue", "불러오기 실패");
-                setText("energySub", "에너지 API 응답/경로 확인");
-                setText("energyMeta", String(e));
+                setText("energyValue", "에너지 데이터 없음");
+                setText("energySub", "");
+                setText("energyMeta", "");
+                HEALTH.energy = false;
+                updateHealthIndicators();
             }
         }
 
@@ -1234,7 +1419,8 @@
             // 1) 내부 API 후보 먼저 시도 (outbound 차단 환경 대비)
             for (const u of WIDGETS.fxInternalCandidates) {
                 try {
-                    const data = await tryFetchJson(u);
+                    const iu = `${API_BASE}${u}`;
+                    const data = await tryFetchJson(iu);
 
                     // 허용되는 형태를 넓게 처리
                     const rate =
@@ -1252,6 +1438,8 @@
                     setText("fxValue", r.toFixed(2));
                     setText("fxSub", `${base} 1 = ${target} ${r.toFixed(2)}`);
                     setText("fxMeta", data?.updated ? `업데이트: ${data.updated}` : `소스: 내부 API (${u})`);
+                    HEALTH.fx = true;
+                    updateHealthIndicators();
                     return;
                 } catch (_) {
                     // 다음 후보로
@@ -1270,40 +1458,65 @@
                 setText("fxValue", `${Number(rate).toFixed(2)}`);
                 setText("fxSub", `${base} 1 = ${target} ${Number(rate).toFixed(2)}`);
                 setText("fxMeta", updated ? `업데이트: ${data.time_last_update_utc || new Date(updated * 1000).toISOString()}` : "");
+                HEALTH.fx = true;
+                updateHealthIndicators();
             } catch (e) {
                 setText("fxValue", "불러오기 실패");
                 setText("fxSub", "네트워크/방화벽 outbound 또는 내부 FX API 필요");
                 setText("fxMeta", String(e));
+                HEALTH.fx = false;
+                updateHealthIndicators();
             }
         }
 
         async function loadTime() {
             const tz = WIDGETS.tz;
-            const url = `https://worldtimeapi.org/api/timezone/${encodeURIComponent(tz)}`;
 
-            setText("timeSub", "로딩 중...");
+            // 외부 API 없이 브라우저 로컬 시간으로 표기(방화벽/outbound 무관)
             try {
-                const data = await tryFetchJson(url);
+                const now = new Date();
+                const fmt = new Intl.DateTimeFormat("ko-KR", {
+                    timeZone: tz,
+                    year: "numeric",
+                    month: "2-digit",
+                    day: "2-digit",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                    hour12: false
+                });
 
-                const dtStr = data && (data.datetime || data.utc_datetime);
-                if (!dtStr) throw new Error("datetime not found");
+                // HH:MM은 별도 계산(간단)
+                const timeStr = new Intl.DateTimeFormat("ko-KR", {
+                    timeZone: tz,
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: false
+                }).format(now);
 
-                const dt = new Date(dtStr);
-                setText("timeValue", fmtTimeHHMM(dt));
-                setText("timeSub", dt.toLocaleString("ko-KR", { timeZone: "Asia/Seoul" }));
-                setText("timeMeta", data.abbreviation ? `타임존: ${data.timezone} (${data.abbreviation})` : `타임존: ${data.timezone}`);
+                setText("timeValue", timeStr.replace(" ", ""));
+                setText("timeSub", fmt.format(now));
+                setText("timeMeta", `타임존: ${tz}`);
+
+                HEALTH.time = true;
+                updateHealthIndicators();
             } catch (e) {
                 setText("timeValue", "불러오기 실패");
-                setText("timeSub", "네트워크/방화벽 outbound 확인");
+                setText("timeSub", "브라우저 시간 포맷 오류");
                 setText("timeMeta", String(e));
+
+                HEALTH.time = false;
+                updateHealthIndicators();
             }
         }
 
         async function refreshWidgets() {
             await Promise.allSettled([loadWeather(), loadEnergy(), loadFx(), loadTime()]);
+            updateHealthIndicators();
         }
 
         // toolbar refresh
+        document.getElementById("tbHealth")?.addEventListener("click", refreshWidgets);
         document.getElementById("tbRefresh")?.addEventListener("click", refreshWidgets);
         document.getElementById("refreshBtn")?.addEventListener("click", refreshWidgets);
 
