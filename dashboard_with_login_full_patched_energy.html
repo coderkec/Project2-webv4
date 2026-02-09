@@ -625,16 +625,25 @@
         function lockUI() {
             document.getElementById("questionInput").disabled = true;
             document.getElementById("sendButton").disabled = true;
-            document.querySelectorAll(".example-btn").forEach(b => b.disabled = true);
+
+            // ✅ 예시 질문 버튼만 잠금 (Login 버튼 제외)
+            document.querySelectorAll(".example-questions .example-btn")
+                .forEach(b => b.disabled = true);
+
             document.getElementById("lockedOverlay").classList.add("active");
         }
 
         function unlockUI() {
             document.getElementById("questionInput").disabled = false;
             document.getElementById("sendButton").disabled = false;
-            document.querySelectorAll(".example-btn").forEach(b => b.disabled = false);
+
+            // ✅ 예시 질문 버튼만 해제
+            document.querySelectorAll(".example-questions .example-btn")
+                .forEach(b => b.disabled = false);
+
             document.getElementById("lockedOverlay").classList.remove("active");
         }
+
 
         function toggleLoginPanel() {
             const panel = document.getElementById("loginPanel");
